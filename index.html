@@ -76,6 +76,14 @@
     border-radius: 50%; animation: sp .8s linear infinite; vertical-align: -1px; }
   @keyframes sp { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+  .modal { background: var(--panel); color: var(--text); width: 100%; max-width: 640px; border-radius: 18px 18px 0 0;
+    padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .modal h3 { margin: 0 0 10px; font-size: 18px; }
+  .modal ol { margin: 0 0 12px; padding-left: 22px; }
+  .modal li { margin-bottom: 6px; }
+  .modal .alt { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+  .modal .btns { display: grid; gap: 8px; }
   .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%);
     background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px;
     max-width: 90vw; z-index: 10; }
@@ -122,11 +130,11 @@
   <!-- 拍照 -->
   <div class="capture">
     <label class="btn primary big" for="camInput">📷 拍名片</label>
-    <label class="btn big" for="libInput">🖼️ 相簿</label>
+    <label class="btn big" for="libInput">🖼️ 從照片選</label>
   </div>
   <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
   <input type="file" id="libInput" accept="image/*" multiple class="hidden">
-  <p class="hint">拍完一張可以直接再拍下一張，辨識會在背景進行。相簿可一次選多張。</p>
+  <p class="hint">拍完一張可以直接再拍下一張，辨識會在背景進行。<br>也可以先用「相機」App 拍完全部名片，再按「從照片選」一次勾選多張。</p>
 
   <div class="list-head">
     <h2 id="listTitle">名片</h2>
@@ -137,11 +145,26 @@
 </main>
 
 <footer>
-  <div class="inner">
+  <div class="inner" style="grid-template-columns: 1fr">
     <button class="btn primary" id="btnSave" disabled>存入通訊錄</button>
-    <button class="btn" id="btnShare" disabled>分享…</button>
   </div>
 </footer>
+
+<div class="modal-bg hidden" id="batchModal">
+  <div class="modal" role="dialog" aria-labelledby="batchTitle">
+    <h3 id="batchTitle">一次存入 N 位聯絡人</h3>
+    <ol>
+      <li>按下方「開啟分享選單」，選<b>「儲存到檔案」</b>，存到「我的 iPhone」。</li>
+      <li>打開<b>「檔案」App</b>，點剛存的名片檔。</li>
+      <li>選<b>「加入全部聯絡人」</b>。</li>
+    </ol>
+    <p class="alt">如果「檔案」App 裡沒有「加入全部」，改在分享選單選「郵件」寄給自己，在郵件裡點附件，也會出現「加入全部」。</p>
+    <div class="btns">
+      <button class="btn primary big" id="btnBatchShare">開啟分享選單</button>
+      <button class="btn" id="btnBatchCancel">取消</button>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -246,25 +269,27 @@ async function handleFiles(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
   if (!settings.password) { openSettings(); toast('請先輸入存取密碼'); }
-  for (const file of files) {
-    const card = {
-      id: uid(), createdAt: Date.now(), status: 'queued', error: '', warning: '',
-      thumb: '', data: emptyData(), meetDate: $('#meetDate').value || todayStr(),
-      meetPlace: $('#meetPlace').value.trim(), selected: false, saved: false, expanded: false,
-    };
-    cards.unshift(card);
-    renderList();
+  // 依選取順序排在清單最上方
+  const batch = files.map(() => ({
+    id: uid(), createdAt: Date.now(), status: 'queued', error: '', warning: '',
+    thumb: '', data: emptyData(), meetDate: $('#meetDate').value || todayStr(),
+    meetPlace: $('#meetPlace').value.trim(), selected: false, saved: false, expanded: false,
+  }));
+  cards.unshift(...batch);
+  renderList();
+  // 逐張縮圖，每縮好一張就開始辨識，不必等全部縮完
+  for (let i = 0; i < files.length; i++) {
+    const card = batch[i];
     try {
-      const img = await loadImage(file);
+      const img = await loadImage(files[i]);
       card.thumb = toJpeg(img, THUMB_MAX_PX, THUMB_QUALITY);
       images.set(card.id, toJpeg(img, FULL_MAX_PX, FULL_QUALITY).split(',')[1]);
       queue.push(card.id);
     } catch (e) {
       card.status = 'error'; card.error = e.message;
     }
-    renderCard(card.id); persist();
+    renderCard(card.id); persist(); pump();
   }
-  pump();
 }
 
 // ---------- 辨識佇列 ----------
@@ -428,12 +453,28 @@ function openVcf(list) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
   markSaved(list);
-  toast(list.length > 1 ? `已產生 ${list.length} 位聯絡人的檔案，請在跳出的畫面選「加入全部」` : '請在跳出的畫面選「建立新聯絡人」', 5000);
+  toast(list.length > 1 ? '已下載名片檔，請到「檔案」App 的「下載項目」點開，選「加入全部聯絡人」' : '請在跳出的畫面選「建立新聯絡人」', 6000);
 }
+// 多位：iPhone 的 Safari 預覽一次只能存一位，改走「儲存到檔案」再從檔案 App 一次加入全部
+let batchList = [];
+function saveSelected() {
+  const list = selectedCards();
+  if (list.length === 1) { openVcf(list); return; }
+  batchList = list;
+  $('#batchTitle').textContent = `一次存入 ${list.length} 位聯絡人`;
+  $('#batchModal').classList.remove('hidden');
+}
+$('#btnBatchShare').addEventListener('click', async () => {
+  $('#batchModal').classList.add('hidden');
+  const file = makeFile(batchList);
+  if (navigator.canShare && navigator.canShare({ files: [file] })) await shareVcf(batchList);
+  else openVcf(batchList);
+});
+$('#btnBatchCancel').addEventListener('click', () => $('#batchModal').classList.add('hidden'));
 async function shareVcf(list) {
   if (!list.length) return;
   const file = makeFile(list);
-  if (!(navigator.canShare && navigator.canShare({ files: [file] }))) { toast('這個瀏覽器不支援分享檔案，請改用「存入通訊錄」'); return; }
+  if (!(navigator.canShare && navigator.canShare({ files: [file] }))) { openVcf(list); return; }
   try { await navigator.share({ files: [file] }); markSaved(list); }
   catch (e) { if (e.name !== 'AbortError') toast('分享失敗：' + e.message); }
 }
@@ -532,7 +573,6 @@ function updateFooter() {
   const n = selectedCards().length;
   $('#btnSave').disabled = n === 0;
   $('#btnSave').textContent = n ? `存入通訊錄（${n} 位）` : '存入通訊錄';
-  $('#btnShare').disabled = n === 0;
 }
 
 // ---------- 事件 ----------
@@ -568,8 +608,7 @@ $('#list').addEventListener('input', e => {
 
 $('#camInput').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
 $('#libInput').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
-$('#btnSave').addEventListener('click', () => openVcf(selectedCards()));
-$('#btnShare').addEventListener('click', () => shareVcf(selectedCards()));
+$('#btnSave').addEventListener('click', saveSelected);
 $('#btnClearSaved').addEventListener('click', () => {
   const n = cards.filter(c => c.saved).length;
   if (!confirm(`清除 ${n} 張已存入通訊錄的名片？（不會影響通訊錄）`)) return;
