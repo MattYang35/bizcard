@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#232f3e">
+<meta name="apple-mobile-web-app-title" content="名片掃描">
+<link rel="apple-touch-icon" href="icon.png">
+<title>名片掃描</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #16191f; --muted: #5f6b7a;
+    --line: #d5dbe1; --accent: #0972d3; --accent-text: #ffffff;
+    --ok: #037f0c; --warn: #8d6605; --err: #d91515; --chip: #eef1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1419; --panel: #1b222b; --text: #e9ebed; --muted: #9ba7b6;
+      --line: #344150; --accent: #539fe5; --accent-text: #0f1419;
+      --ok: #58d36b; --warn: #f2cd54; --err: #ff7a7a; --chip: #25303c;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    -webkit-text-size-adjust: 100%; }
+  body { padding: env(safe-area-inset-top) 0 calc(96px + env(safe-area-inset-bottom)); }
+  header { display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; }
+  header h1 { font-size: 20px; margin: 0; }
+  main { padding: 0 12px; max-width: 640px; margin: 0 auto; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 14px; margin-bottom: 12px; }
+  .panel h2 { font-size: 16px; margin: 0 0 8px; }
+  label.f { display: block; font-size: 13px; color: var(--muted); margin: 8px 0 2px; }
+  input[type=text], input[type=password], input[type=date], input[type=email], textarea, select {
+    width: 100%; font-size: 16px; padding: 9px 10px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text); font-family: inherit; }
+  textarea { resize: vertical; min-height: 44px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    border-radius: 11px; padding: 10px 14px; font-size: 16px; font-weight: 600; cursor: pointer;
+    font-family: inherit; text-decoration: none; }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .btn.big { width: 100%; padding: 16px; font-size: 18px; border-radius: 14px; }
+  .btn.small { padding: 6px 10px; font-size: 14px; font-weight: 500; }
+  .btn.danger { color: var(--err); }
+  .btn:disabled { opacity: .45; }
+  .icon-btn { border: 0; background: none; font-size: 24px; color: var(--text); padding: 4px 8px; cursor: pointer; }
+  .capture { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 8px; }
+  .hint { font-size: 13px; color: var(--muted); margin: 4px 2px 0; }
+  .note { font-size: 13px; color: var(--muted); background: var(--chip); border-radius: 9px; padding: 8px 10px; margin-top: 10px; }
+  .hidden { display: none !important; }
+  .list-head { display: flex; justify-content: space-between; align-items: center; margin: 16px 4px 8px; }
+  .list-head h2 { font-size: 16px; margin: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 10px; overflow: hidden; }
+  .card .top { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; }
+  .card .top input[type=checkbox] { width: 24px; height: 24px; flex: none; accent-color: var(--accent); }
+  .card .thumb { width: 64px; height: 40px; object-fit: cover; border-radius: 6px; background: var(--chip); flex: none; }
+  .card .sum { flex: 1; min-width: 0; }
+  .card .name { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .sub { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--chip); color: var(--muted); flex: none; white-space: nowrap; }
+  .badge.ok { color: var(--ok); } .badge.warn { color: var(--warn); } .badge.err { color: var(--err); }
+  .card .body { border-top: 1px solid var(--line); padding: 10px 12px 14px; }
+  .card .big-img { width: 100%; border-radius: 9px; margin-bottom: 4px; }
+  .card .err-msg { color: var(--err); font-size: 14px; margin: 4px 0 8px; }
+  .card .warn-msg { color: var(--warn); font-size: 14px; margin: 4px 0 8px; }
+  .card .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  footer { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  footer .inner { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; animation: sp .8s linear infinite; vertical-align: -1px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+  .toast { position: fixed; left: 50%; bottom: calc(100px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px;
+    max-width: 90vw; z-index: 10; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📇 名片掃描</h1>
+  <button class="icon-btn" id="btnSettings" aria-label="設定">⚙️</button>
+</header>
+
+<main>
+  <!-- 設定 -->
+  <section class="panel hidden" id="settings">
+    <h2>設定</h2>
+    <label class="f" for="password">存取密碼</label>
+    <input type="password" id="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="部署時設定的密碼">
+    <div class="actions" style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn primary" id="btnSaveSettings">儲存</button>
+      <button class="btn" id="btnTestKey">測試連線</button>
+    </div>
+    <div class="note">
+      名片照片會送到你自己 AWS 帳號裡的後端，由 Amazon Bedrock 上的 Claude 辨識。Bedrock 不會保存照片與結果，也不會拿來訓練模型。<br>
+      密碼只存在這支手機的瀏覽器裡。
+    </div>
+  </section>
+
+  <!-- 認識場合 -->
+  <section class="panel">
+    <h2>這批名片的認識場合</h2>
+    <div class="row2">
+      <div>
+        <label class="f" for="meetDate">日期</label>
+        <input type="date" id="meetDate">
+      </div>
+      <div>
+        <label class="f" for="meetPlace">場合</label>
+        <input type="text" id="meetPlace" placeholder="例：產官學論壇">
+      </div>
+    </div>
+    <p class="hint">會寫進每位聯絡人的備註。之後新拍的名片都會套用這裡的內容。</p>
+  </section>
+
+  <!-- 拍照 -->
+  <div class="capture">
+    <label class="btn primary big" for="camInput">📷 拍名片</label>
+    <label class="btn big" for="libInput">🖼️ 相簿</label>
+  </div>
+  <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
+  <input type="file" id="libInput" accept="image/*" multiple class="hidden">
+  <p class="hint">拍完一張可以直接再拍下一張，辨識會在背景進行。相簿可一次選多張。</p>
+
+  <div class="list-head">
+    <h2 id="listTitle">名片</h2>
+    <button class="btn small danger" id="btnClearSaved">清除已存入</button>
+  </div>
+  <div id="list"></div>
+  <div class="empty" id="empty">還沒有名片，按「拍名片」開始。</div>
+</main>
+
+<footer>
+  <div class="inner">
+    <button class="btn primary" id="btnSave" disabled>存入通訊錄</button>
+    <button class="btn" id="btnShare" disabled>分享…</button>
+  </div>
+</footer>
+
+<script>
+'use strict';
+
+// ---------- 常數 ----------
+const STORE_KEY = 'bizcard.cards.v1';
+const SET_KEY = 'bizcard.settings.v1';
+// 後端網址：部署腳本會自動填入
+const API_URL = 'https://ayyj9bkp9e.execute-api.us-east-1.amazonaws.com';
+const MAX_CONCURRENT = 2;
+const FULL_MAX_PX = 1600, FULL_QUALITY = 0.85;
+const THUMB_MAX_PX = 640, THUMB_QUALITY = 0.7;
+
+const FIELDS = [
+  // key, 標籤, 種類（text / multi / area）
+  ['lastName', '姓', 'text'],
+  ['firstName', '名', 'text'],
+  ['englishName', '英文姓名', 'text'],
+  ['company', '公司', 'text'],
+  ['department', '部門', 'text'],
+  ['title', '職稱', 'text'],
+  ['mobile', '手機（一行一個）', 'multi'],
+  ['workPhone', '公司電話（一行一個，分機用逗號）', 'multi'],
+  ['fax', '傳真', 'multi'],
+  ['email', 'Email', 'multi'],
+  ['website', '網站', 'multi'],
+  ['address', '地址', 'area'],
+  ['other', '名片上的其他資訊', 'area'],
+];
+const PAIRED = { lastName: 'firstName' }; // 這兩欄並排
+
+// ---------- 狀態 ----------
+const $ = (sel, el = document) => el.querySelector(sel);
+const loadJSON = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+
+let settings = Object.assign({ password: '', meetPlace: '' }, loadJSON(SET_KEY, {}));
+let cards = loadJSON(STORE_KEY, []);
+const images = new Map();   // id -> 原圖 base64（只放記憶體，不存）
+const queue = [];
+let active = 0;
+
+// 重新載入頁面後，原圖已不在記憶體，還在辨識的名片無法續辨
+for (const c of cards) {
+  if (c.status === 'queued' || c.status === 'working') {
+    c.status = 'error';
+    c.error = '頁面重新載入，辨識中斷了。請刪除後重拍這張。';
+  }
+}
+
+function saveSettings() { localStorage.setItem(SET_KEY, JSON.stringify(settings)); }
+let persistTimer = null;
+function persist() {
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(cards)); }
+    catch (e) { toast('手機儲存空間已滿，請先存入通訊錄並清除已存入的名片'); }
+  }, 300);
+}
+
+function todayStr() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function emptyData() {
+  return { lastName: '', firstName: '', englishName: '', company: '', department: '', title: '',
+    mobile: [], workPhone: [], fax: [], email: [], website: [], address: '', other: '' };
+}
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+let toastTimer = null;
+function toast(msg, ms = 3500) {
+  let el = $('#toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg; el.classList.remove('hidden');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
+}
+
+// ---------- 影像處理 ----------
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('無法讀取這張照片')); };
+    img.src = url;
+  });
+}
+function toJpeg(img, maxPx, quality) {
+  const w0 = img.naturalWidth, h0 = img.naturalHeight;
+  const s = Math.min(1, maxPx / Math.max(w0, h0));
+  const w = Math.round(w0 * s), h = Math.round(h0 * s);
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  cv.getContext('2d').drawImage(img, 0, 0, w, h);
+  return cv.toDataURL('image/jpeg', quality);
+}
+
+async function handleFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  if (!settings.password) { openSettings(); toast('請先輸入存取密碼'); }
+  for (const file of files) {
+    const card = {
+      id: uid(), createdAt: Date.now(), status: 'queued', error: '', warning: '',
+      thumb: '', data: emptyData(), meetDate: $('#meetDate').value || todayStr(),
+      meetPlace: $('#meetPlace').value.trim(), selected: false, saved: false, expanded: false,
+    };
+    cards.unshift(card);
+    renderList();
+    try {
+      const img = await loadImage(file);
+      card.thumb = toJpeg(img, THUMB_MAX_PX, THUMB_QUALITY);
+      images.set(card.id, toJpeg(img, FULL_MAX_PX, FULL_QUALITY).split(',')[1]);
+      queue.push(card.id);
+    } catch (e) {
+      card.status = 'error'; card.error = e.message;
+    }
+    renderCard(card.id); persist();
+  }
+  pump();
+}
+
+// ---------- 辨識佇列 ----------
+function pump() {
+  while (active < MAX_CONCURRENT && queue.length) {
+    const id = queue.shift();
+    active++;
+    recognize(id).finally(() => { active--; pump(); });
+  }
+}
+
+class ApiError extends Error {
+  constructor(status, code) { super(code); this.status = status; this.code = code; }
+}
+
+function friendlyError(e) {
+  if (!(e instanceof ApiError)) {
+    if (e && e.name === 'TypeError') return '連線失敗，請確認網路後按「重新辨識」。';
+    return (e && e.message) || '發生未知錯誤';
+  }
+  if (e.status === 401) return '密碼不對，請到設定（右上角 ⚙️）重新輸入。';
+  if (e.status === 429) return '辨識太頻繁或超過額度，請稍等一下再按「重新辨識」。';
+  if (e.code === 'invalid_image' || e.code === 'bad_image_size') return '照片無法辨識，請重拍一張。';
+  if (e.status === 504 || e.status === 503) return '辨識逾時，請按「重新辨識」。';
+  return `辨識失敗（${e.status} ${e.code || ''}），請按「重新辨識」。`;
+}
+
+async function recognize(id) {
+  const card = cards.find(c => c.id === id);
+  const b64 = images.get(id);
+  if (!card || !b64) return;
+  if (!API_URL) {
+    card.status = 'error'; card.error = '這個網頁還沒設定後端網址，請先執行部署腳本。';
+    renderCard(id); persist(); return;
+  }
+  if (!settings.password) {
+    card.status = 'error'; card.error = '請先在設定（右上角 ⚙️）輸入存取密碼，再按「重新辨識」。';
+    renderCard(id); persist(); return;
+  }
+  card.status = 'working'; card.error = ''; card.warning = '';
+  renderCard(id);
+  try {
+    const r = await callBackend(b64);
+    const d = card.data;
+    const str = v => (typeof v === 'string' ? v.trim() : '');
+    const arr = v => (Array.isArray(v) ? v : (typeof v === 'string' && v ? [v] : []))
+      .map(x => String(x).trim()).filter(Boolean);
+    d.lastName = str(r.last_name); d.firstName = str(r.first_name); d.englishName = str(r.english_name);
+    d.company = str(r.company); d.department = str(r.department); d.title = str(r.title);
+    d.mobile = arr(r.mobile); d.workPhone = arr(r.work_phone); d.fax = arr(r.fax);
+    d.email = arr(r.email); d.website = arr(r.website);
+    d.address = str(r.address); d.other = str(r.other);
+    card.status = 'done';
+    if (r.is_business_card === false) {
+      card.warning = '這張看起來不是名片，預設不會存入。';
+      card.selected = false;
+    } else if (!fullName(d) && !d.company) {
+      card.warning = '沒有辨識出姓名或公司，請檢查。';
+      card.selected = false;
+    } else {
+      card.selected = true;
+    }
+  } catch (e) {
+    card.status = 'error'; card.error = friendlyError(e);
+  }
+  renderCard(id); persist(); updateFooter();
+}
+
+async function post(path, body, password) {
+  return fetch(API_URL + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + password },
+    body: JSON.stringify(body),
+  });
+}
+
+async function callBackend(b64) {
+  const delays = [2000, 5000];
+  for (let i = 0; ; i++) {
+    const res = await post('/scan', { image: b64 }, settings.password);
+    if ((res.status === 429 || res.status >= 500) && i < delays.length) {
+      await new Promise(r => setTimeout(r, delays[i]));
+      continue;
+    }
+    let j = {};
+    try { j = await res.json(); } catch { /* 非 JSON 回應 */ }
+    if (!res.ok) throw new ApiError(res.status, j.error || j.message || '');
+    if (!j.card) throw new Error('後端沒有回傳結果，請重試。');
+    return j.card;
+  }
+}
+
+// ---------- vCard ----------
+const CJK = /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff\uac00-\ud7af]/;
+function fullName(d) {
+  const last = d.lastName.trim(), first = d.firstName.trim();
+  if (last || first) return CJK.test(last + first) ? last + first : [first, last].filter(Boolean).join(' ');
+  return d.englishName.trim();
+}
+function vEsc(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+}
+function vTel(s) { return String(s).replace(/[;\r\n]/g, ' ').trim(); }
+function fold(line) {
+  const enc = new TextEncoder();
+  if (enc.encode(line).length <= 75) return line;
+  const out = []; let cur = '', bytes = 0;
+  for (const ch of line) {
+    const b = enc.encode(ch).length;
+    if (bytes + b > 75) { out.push(cur); cur = ' ' + ch; bytes = 1 + b; }
+    else { cur += ch; bytes += b; }
+  }
+  out.push(cur);
+  return out.join('\r\n');
+}
+function cardToVcard(c) {
+  const d = c.data;
+  const L = ['BEGIN:VCARD', 'VERSION:3.0'];
+  const last = d.lastName.trim(), first = d.firstName.trim();
+  const fn = fullName(d) || d.company.trim() || '未命名';
+  L.push(`N:${vEsc(last)};${vEsc(first)};;;`);
+  L.push(`FN:${vEsc(fn)}`);
+  if (!fullName(d) && d.company.trim()) L.push('X-ABShowAs:COMPANY'); // 只有公司名時，iPhone 以公司名顯示
+  if (d.englishName.trim() && d.englishName.trim() !== fn) L.push(`NICKNAME:${vEsc(d.englishName.trim())}`);
+  if (d.company.trim() || d.department.trim()) L.push(`ORG:${vEsc(d.company.trim())};${vEsc(d.department.trim())}`);
+  if (d.title.trim()) L.push(`TITLE:${vEsc(d.title.trim())}`);
+  d.mobile.forEach(v => L.push(`TEL;TYPE=CELL:${vTel(v)}`));
+  d.workPhone.forEach(v => L.push(`TEL;TYPE=WORK,VOICE:${vTel(v)}`));
+  d.fax.forEach(v => L.push(`TEL;TYPE=WORK,FAX:${vTel(v)}`));
+  d.email.forEach(v => L.push(`EMAIL;TYPE=INTERNET,WORK:${v.trim()}`));
+  d.website.forEach(v => L.push(`URL:${v.trim()}`));
+  if (d.address.trim()) L.push(`ADR;TYPE=WORK:;;${vEsc(d.address.trim())};;;;`);
+  const note = [];
+  if (c.meetDate) note.push(`認識日期：${c.meetDate}`);
+  if (c.meetPlace.trim()) note.push(`認識場合：${c.meetPlace.trim()}`);
+  if (d.other.trim()) note.push('', d.other.trim());
+  if (note.length) L.push(`NOTE:${vEsc(note.join('\n'))}`);
+  L.push('END:VCARD');
+  return L.map(fold).join('\r\n');
+}
+
+// ---------- 存入通訊錄 ----------
+function selectedCards() { return cards.filter(c => c.status === 'done' && c.selected); }
+function makeFile(list) {
+  const vcf = list.map(cardToVcard).join('\r\n') + '\r\n';
+  const name = list.length === 1
+    ? `${(fullName(list[0].data) || list[0].data.company || '名片').replace(/[\\/:*?"<>|]/g, '')}.vcf`
+    : `名片_${todayStr()}_${list.length}位.vcf`;
+  return new File([vcf], name, { type: 'text/vcard' });
+}
+function markSaved(list) {
+  list.forEach(c => { c.saved = true; c.selected = false; renderCard(c.id); });
+  persist(); updateFooter();
+}
+function openVcf(list) {
+  if (!list.length) return;
+  const file = makeFile(list);
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url; a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  markSaved(list);
+  toast(list.length > 1 ? `已產生 ${list.length} 位聯絡人的檔案，請在跳出的畫面選「加入全部」` : '請在跳出的畫面選「建立新聯絡人」', 5000);
+}
+async function shareVcf(list) {
+  if (!list.length) return;
+  const file = makeFile(list);
+  if (!(navigator.canShare && navigator.canShare({ files: [file] }))) { toast('這個瀏覽器不支援分享檔案，請改用「存入通訊錄」'); return; }
+  try { await navigator.share({ files: [file] }); markSaved(list); }
+  catch (e) { if (e.name !== 'AbortError') toast('分享失敗：' + e.message); }
+}
+
+// ---------- 畫面 ----------
+function statusBadge(c) {
+  if (c.status === 'queued') return '<span class="badge">排隊中</span>';
+  if (c.status === 'working') return '<span class="badge"><span class="spin"></span> 辨識中</span>';
+  if (c.status === 'error') return '<span class="badge err">失敗</span>';
+  if (c.saved) return '<span class="badge ok">✓ 已存入</span>';
+  if (c.warning) return '<span class="badge warn">請檢查</span>';
+  return '<span class="badge ok">待存入</span>';
+}
+function summary(c) {
+  const d = c.data;
+  if (c.status !== 'done') return { name: c.status === 'error' ? '辨識失敗' : '辨識中…', sub: c.meetPlace || '' };
+  const nm = [fullName(d), d.englishName && d.englishName !== fullName(d) ? d.englishName : ''].filter(Boolean).join(' ');
+  return { name: nm || d.company || '（未辨識出姓名）', sub: [d.company, d.title].filter(Boolean).join(' · ') };
+}
+function fieldHtml(c, key, label, kind) {
+  const v = c.data[key];
+  const id = `${c.id}-${key}`;
+  if (kind === 'multi') {
+    return `<label class="f" for="${id}">${label}</label><textarea id="${id}" data-k="${key}" data-kind="multi" rows="${Math.max(1, v.length)}" autocapitalize="off">${escHtml(v.join('\n'))}</textarea>`;
+  }
+  if (kind === 'area') {
+    return `<label class="f" for="${id}">${label}</label><textarea id="${id}" data-k="${key}" rows="2">${escHtml(v)}</textarea>`;
+  }
+  return `<label class="f" for="${id}">${label}</label><input type="text" id="${id}" data-k="${key}" value="${escHtml(v)}">`;
+}
+function cardHtml(c) {
+  const s = summary(c);
+  const canSelect = c.status === 'done';
+  let body = '';
+  if (c.expanded) {
+    let fields = '';
+    if (c.status === 'done') {
+      for (let i = 0; i < FIELDS.length; i++) {
+        const [key, label, kind] = FIELDS[i];
+        if (PAIRED[key]) {
+          const [k2, l2, t2] = FIELDS[i + 1];
+          fields += `<div class="row2"><div>${fieldHtml(c, key, label, kind)}</div><div>${fieldHtml(c, k2, l2, t2)}</div></div>`;
+          i++;
+        } else fields += fieldHtml(c, key, label, kind);
+      }
+      fields += `<div class="row2"><div><label class="f">認識日期</label><input type="date" data-meta="meetDate" value="${escHtml(c.meetDate)}"></div>
+        <div><label class="f">認識場合</label><input type="text" data-meta="meetPlace" value="${escHtml(c.meetPlace)}"></div></div>`;
+    }
+    body = `<div class="body">
+      ${c.thumb ? `<img class="big-img" src="${c.thumb}" alt="名片照片">` : ''}
+      ${c.error ? `<div class="err-msg">${escHtml(c.error)}</div>` : ''}
+      ${c.warning ? `<div class="warn-msg">${escHtml(c.warning)}</div>` : ''}
+      ${fields}
+      <div class="actions">
+        ${c.status === 'done' ? '<button class="btn small" data-act="saveOne">只存這一位</button>' : ''}
+        ${images.has(c.id) && (c.status === 'done' || c.status === 'error') ? '<button class="btn small" data-act="retry">重新辨識</button>' : ''}
+        <button class="btn small danger" data-act="del">刪除</button>
+      </div>
+    </div>`;
+  }
+  return `<div class="top" data-act="toggle">
+      ${canSelect ? `<input type="checkbox" data-act="sel" ${c.selected ? 'checked' : ''} aria-label="選取">` : ''}
+      ${c.thumb ? `<img class="thumb" src="${c.thumb}" alt="">` : '<div class="thumb"></div>'}
+      <div class="sum"><div class="name">${escHtml(s.name)}</div><div class="sub">${escHtml(s.sub)}</div></div>
+      ${statusBadge(c)}
+    </div>${body}`;
+}
+function renderCard(id) {
+  const c = cards.find(x => x.id === id);
+  const el = document.getElementById('c-' + id);
+  if (!c) { if (el) el.remove(); renderMeta(); return; }
+  if (!el) { renderList(); return; }
+  el.innerHTML = cardHtml(c);
+  renderMeta();
+}
+function renderList() {
+  const list = $('#list');
+  list.innerHTML = '';
+  for (const c of cards) {
+    const el = document.createElement('div');
+    el.className = 'card'; el.id = 'c-' + c.id; el.dataset.id = c.id;
+    el.innerHTML = cardHtml(c);
+    list.appendChild(el);
+  }
+  renderMeta();
+}
+function renderMeta() {
+  $('#empty').classList.toggle('hidden', cards.length > 0);
+  const saved = cards.filter(c => c.saved).length;
+  $('#btnClearSaved').classList.toggle('hidden', saved === 0);
+  const working = cards.filter(c => c.status === 'queued' || c.status === 'working').length;
+  $('#listTitle').textContent = `名片（${cards.length}）` + (working ? `・辨識中 ${working}` : '');
+  updateFooter();
+}
+function updateFooter() {
+  const n = selectedCards().length;
+  $('#btnSave').disabled = n === 0;
+  $('#btnSave').textContent = n ? `存入通訊錄（${n} 位）` : '存入通訊錄';
+  $('#btnShare').disabled = n === 0;
+}
+
+// ---------- 事件 ----------
+$('#list').addEventListener('click', e => {
+  const cardEl = e.target.closest('.card'); if (!cardEl) return;
+  const c = cards.find(x => x.id === cardEl.dataset.id); if (!c) return;
+  const actEl = e.target.closest('[data-act]'); if (!actEl) return;
+  const act = actEl.dataset.act;
+  if (act === 'sel') { e.stopPropagation(); c.selected = actEl.checked; persist(); renderCard(c.id); return; }
+  if (act === 'toggle') { c.expanded = !c.expanded; renderCard(c.id); return; }
+  if (act === 'del') {
+    if (!confirm('確定刪除這張名片？')) return;
+    cards = cards.filter(x => x.id !== c.id); images.delete(c.id);
+    renderCard(c.id); persist(); return;
+  }
+  if (act === 'retry') { c.status = 'queued'; renderCard(c.id); queue.push(c.id); pump(); return; }
+  if (act === 'saveOne') { openVcf([c]); return; }
+});
+$('#list').addEventListener('input', e => {
+  const cardEl = e.target.closest('.card'); if (!cardEl) return;
+  const c = cards.find(x => x.id === cardEl.dataset.id); if (!c) return;
+  const t = e.target;
+  if (t.dataset.k) {
+    c.data[t.dataset.k] = t.dataset.kind === 'multi'
+      ? t.value.split('\n').map(s => s.trim()).filter(Boolean) : t.value;
+  } else if (t.dataset.meta) {
+    c[t.dataset.meta] = t.value;
+  } else return;
+  const s = summary(c);
+  $('.name', cardEl).textContent = s.name; $('.sub', cardEl).textContent = s.sub;
+  persist();
+});
+
+$('#camInput').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+$('#libInput').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+$('#btnSave').addEventListener('click', () => openVcf(selectedCards()));
+$('#btnShare').addEventListener('click', () => shareVcf(selectedCards()));
+$('#btnClearSaved').addEventListener('click', () => {
+  const n = cards.filter(c => c.saved).length;
+  if (!confirm(`清除 ${n} 張已存入通訊錄的名片？（不會影響通訊錄）`)) return;
+  cards.filter(c => c.saved).forEach(c => images.delete(c.id));
+  cards = cards.filter(c => !c.saved);
+  renderList(); persist();
+});
+
+// 設定
+function openSettings() {
+  $('#settings').classList.remove('hidden');
+  $('#password').value = settings.password;
+  window.scrollTo({ top: 0 });
+}
+$('#btnSettings').addEventListener('click', () => {
+  const box = $('#settings');
+  if (box.classList.contains('hidden')) openSettings(); else box.classList.add('hidden');
+});
+$('#btnSaveSettings').addEventListener('click', () => {
+  settings.password = $('#password').value.trim();
+  saveSettings();
+  $('#settings').classList.add('hidden');
+  toast('已儲存');
+});
+$('#btnTestKey').addEventListener('click', async () => {
+  const pw = $('#password').value.trim();
+  if (!API_URL) { toast('這個網頁還沒設定後端網址'); return; }
+  if (!pw) { toast('請先輸入密碼'); return; }
+  const btn = $('#btnTestKey'); btn.disabled = true; btn.textContent = '測試中…';
+  try {
+    const res = await post('/ping', {}, pw);
+    if (res.ok) toast('連線成功，密碼正確 ✓');
+    else toast(friendlyError(new ApiError(res.status, '')), 6000);
+  } catch (e) { toast('連線失敗：' + e.message); }
+  btn.disabled = false; btn.textContent = '測試連線';
+});
+
+// 認識場合（記住上次輸入）
+$('#meetDate').value = todayStr();
+$('#meetPlace').value = settings.meetPlace || '';
+$('#meetPlace').addEventListener('input', e => { settings.meetPlace = e.target.value; saveSettings(); });
+
+// 啟動
+renderList();
+if (!settings.password) openSettings();
+</script>
+</body>
+</html>
